@@ -1,80 +1,81 @@
-# ZET 017 TCP/IP Communication Library
+# ZET 017 TCP/IP Библиотека для коммуникации
 
-A cross-platform C library for communicating with ZET 017, ZET 038 and ZET 028 devices over TCP/IP.
+Кроссплатформенная библиотека на языке C для взаимодействия с устройствами ZET 017, ZET 038 и ZET 028 по протоколу TCP/IP.
 
-## Features
+## Возможности
 
-- **Cross-platform support**: Windows and Linux/Unix compatibility
-- **Multi-device management**: Handle multiple devices simultaneously
-- **Real-time data acquisition**: Stream ADC data with configurable sample rates (2.5-50 kHz)
-- **Dual-channel DAC support**: Digital-to-analog conversion capabilities
-- **Configuration management**: Set and get device parameters programmatically
-- **Thread-safe architecture**: Built with mutexes and condition variables
-- **TCP/IP communication**: Connect to devices over network interfaces
+- **Кроссплатформенная поддержка**: Совместимость с Windows и Linux/Unix
+- **Управление несколькими устройствами**: Одновременная работа с несколькими устройствами
+- **Сбор данных в реальном времени**: Потоковая передача данных АЦП с настраиваемой частотой дискретизации (2,5-50 кГц)
+- **Поддержка двухканального ЦАП**: Возможности цифро-аналогового преобразования
+- **Управление конфигурацией**: Программная установка и получение параметров устройства
+- **Потокобезопасная архитектура**: Построена на мьютексах и условных переменных
+- **TCP/IP коммуникация**: Подключение к устройствам через сетевые интерфейсы
 
 ## Supported Hardware
 
-ZET 017, ZET 038 and ZET 028 series data acquisition systems with:
-- Up to 8 ADC channels with programmable gains (1x, 10x, 100x)
-- Up to 2 DAC channels
-- Configurable sample rates:
-  - ADC: 2.5 kHz, 5 kHz, 25 kHz, 50 kHz
-  - DAC: Configurable up to 200 kHz
-- ICP (Integrated Circuit Piezoelectric) sensor support
-- Digital I/O functionality
+Системы сбора данных серий ZET 017, ZET 038 и ZET 028 с:
+- До 8 каналов АЦП с программируемыми усилениями (1x, 10x, 100x)
+- До 2 каналов ЦАП
+- Настраиваемые частоты дискретизации:
+  - АЦП: 2,5 кГц, 5 кГц, 25 кГц, 50 кГц
+  - ЦАП: Настраивается до 200 кГц
+- Поддержка ICP (Integrated Circuit Piezoelectric) датчиков
+- Функциональность цифрового ввода/вывода
 
-## Project Structure
+## Структура проекта
 
 ```bash
 zet017tcp/
 ├── include/
-│ └── zet017tcp.h # Public API header
+│ └── zet017tcp.h # Публичный API заголовочный файл
 ├── src/
-│ └── zet017tcp.c # Library implementation
+│ └── zet017tcp.c # Реализация библиотеки
 ├── example/
-│ └── example_zet017tcp.c # Usage example
-├── CMakeLists.txt # Build configuration
-└── README.md
+│ └── example_zet017tcp.c # Пример использования
+├── CMakeLists.txt # Конфигурация сборки
+├── README.md
+└── README.en.md
 ```
 
-## Requirements
+## Требования
 
-- **CMake** (version 3.10 or higher)
-- **C compiler** with C99 support
-- **Platform libraries**:
+- **CMake** (версия 3.10 или выше)
+- **Компилятор C** с поддержкой C99
+- **Платформенные библиотеки**:
   - Windows: Winsock2 (`ws2_32`)
   - Linux/Unix: pthreads
 
-## Building
+## Сборка
 
-### Using CMake (Recommended)
+### Использование CMake (Рекомендуется)
 
 ```bash
-# Create build directory
+# Создание директории сборки
 mkdir build
 cd build
 
-# Configure project
+# Конфигурация проекта
 cmake ..
 
-# Build library and example
+# Сборка библиотеки и примера
 cmake --build .
 ```
 
-## API Overview
+## Обзор API
 
-### Core Functions
+### Основные функции
 
 ```c
-// Server management
+// Управление сервером
 zet017_server_create(struct zet017_server** server_ptr);
 zet017_server_free(struct zet017_server** server_ptr);
 
-// Device management
+// Управление устройствами
 zet017_server_add_device(struct zet017_server* server, const char* ip);
 zet017_server_remove_device(struct zet017_server* server, const char* ip);
 
-// Device operations
+// Операции с устройствами
 zet017_device_get_info(struct zet017_server* server, uint32_t number, struct zet017_info* info);
 zet017_device_get_state(struct zet017_server* server, uint32_t number, struct zet017_state* state);
 zet017_device_get_config(struct zet017_server* server, uint32_t number, struct zet017_config* config);
@@ -82,38 +83,38 @@ zet017_device_set_config(struct zet017_server* server, uint32_t number, struct z
 zet017_device_start(struct zet017_server* server, uint32_t number);
 zet017_device_stop(struct zet017_server* server, uint32_t number);
 
-// Data acquisition
+// Сбор данных
 zet017_channel_get_data(struct zet017_server* server, uint32_t number, uint32_t channel, 
                        uint32_t pointer, float* data, uint32_t size);
 ```
 
-### Data Structures
+### Структуры данных
 
 ```c
 struct zet017_config {
-    uint32_t sample_rate_adc;    // ADC sample rate in Hz
-    uint32_t sample_rate_dac;    // DAC sample rate in Hz
-    uint32_t mask_channel_adc;   // Bitmask of enabled ADC channels
-    uint32_t mask_icp;           // Bitmask of ICP-enabled channels
-    uint32_t gain[8];            // Gain settings for each channel (1, 10, or 100)
+    uint32_t sample_rate_adc;    // Частота дискретизации АЦП в Гц
+    uint32_t sample_rate_dac;    // Частота дискретизации ЦАП в Гц
+    uint32_t mask_channel_adc;   // Битовая маска включенных каналов АЦП
+    uint32_t mask_icp;           // Битовая маска каналов с поддержкой ICP
+    uint32_t gain[8];            // Настройки усиления для каждого канала (1, 10 или 100)
 };
 
 struct zet017_info {
-    char ip[16];                 // Device IP address
-    char name[16];               // Device name
-    uint32_t serial;             // Serial number
-    char version[32];            // Firmware version
+    char ip[16];                 // IP-адрес устройства
+    char name[16];               // Имя устройства
+    uint32_t serial;             // Серийный номер
+    char version[32];            // Версия прошивки
 };
 
 struct zet017_state {
-    uint16_t connected;          // Connection status
-    uint32_t pointer_adc;        // Current ADC buffer position
-    uint32_t buffer_size_adc;    // Total ADC buffer size
-    uint32_t pointer_dac;        // Current DAC buffer position
+    uint16_t connected;          // Статус подключения
+    uint32_t pointer_adc;        // Текущая позиция в буфере АЦП
+    uint32_t buffer_size_adc;    // Общий размер буфера АЦП
+    uint32_t pointer_dac;        // Текущая позиция в буфере ЦАП
 };
 ```
 
-## Usage Example
+## Пример использования
 
 ```c
 #include "zet017tcp.h"
@@ -122,44 +123,44 @@ struct zet017_state {
 int main() {
     struct zet017_server* server = NULL;
     
-    // Initialize server
+    // Инициализация сервера
     if (zet017_server_create(&server) != 0) {
-        fprintf(stderr, "Failed to create server\n");
+        fprintf(stderr, "Ошибка создания сервера\n");
         return -1;
     }
     
-    // Add device
+    // Добавление устройства
     if (zet017_server_add_device(server, "192.168.1.100") != 0) {
-        fprintf(stderr, "Failed to add device\n");
+        fprintf(stderr, "Ошибка добавления устройства\n");
         zet017_server_free(&server);
         return -1;
     }
     
-    // Configure device
+    // Конфигурация устройства
     struct zet017_config config = {
         .sample_rate_adc = 25000,
         .sample_rate_dac = 0,
-        .mask_channel_adc = 0x0E,  // Enable channels 1, 2, 3
-        .mask_icp = 0x02,          // Enable ICP on channel 1
+        .mask_channel_adc = 0x0E,  // Включить каналы 1, 2, 3
+        .mask_icp = 0x02,          // Включить ICP на канале 1
         .gain = {1, 10, 100, 1, 1, 1, 1, 1}
     };
     
     if (zet017_device_set_config(server, 0, &config) != 0) {
-        fprintf(stderr, "Configuration failed\n");
+        fprintf(stderr, "Ошибка конфигурации\n");
     }
     
-    // Start acquisition
+    // Запуск сбора данных
     if (zet017_device_start(server, 0) != 0) {
-        fprintf(stderr, "Failed to start acquisition\n");
+        fprintf(stderr, "Ошибка запуска сбора данных\n");
     }
     
-    // Read data
+    // Чтение данных
     float data[1000];
     if (zet017_channel_get_data(server, 0, 0, 0, data, 1000) == 0) {
-        printf("Successfully read 1000 samples from channel 0\n");
+        printf("Успешно прочитано 1000 отсчетов с канала 0\n");
     }
     
-    // Clean up
+    // Очистка ресурсов
     zet017_device_stop(server, 0);
     zet017_server_free(&server);
     
@@ -167,30 +168,30 @@ int main() {
 }
 ```
 
-## Error Handling
+## Обработка ошибок
 
-All functions return 0 on success and negative values on error:
+Все функции возвращают 0 при успехе и отрицательные значения при ошибке.
 
-## Network Protocol
+## Сетевой протокол
 
-The library communicates with devices using three TCP ports:
+Библиотека взаимодействует с устройствами через три TCP-порта:
 
-- **Command port**: 1808 - Device configuration and control
-- **ADC data port**: 2320 - Analog-to-digital converter data stream
-- **DAC data port**: 3344 - Digital-to-analog converter data stream
+- **Командный порт**: 1808 - Конфигурация и управление устройством
+- **Порт данных АЦП**: 2320 - Поток данных аналого-цифрового преобразователя
+- **Порт данных ЦАП**: 3344 - Поток данных цифро-аналогового преобразователя
 
-## Platform Support
+## Поддержка платформ
 
 ### Windows
 
-- Requires Winsock2 library (ws2_32.lib)
-- Visual Studio project files can be generated with CMake
+- Требуется библиотека Winsock2 (ws2_32.lib)
+- Файлы проектов Visual Studio можно сгенерировать с помощью CMake
 
 ### Linux/Unix
 
-- Requires pthreads library
-- Standard socket programming interface
+- Требуется библиотека pthreads
+- Стандартный интерфейс сокетного программирования
 
-## License
+## Лицензия
 
-This project is licensed under the MIT License. See the COPYING file for details.
+Проект распространяется под лицензией MIT. Подробности см. в файле COPYING.
