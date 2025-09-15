@@ -1,6 +1,6 @@
 ﻿cmake_minimum_required (VERSION 3.10)
 
-project (zet017tcp VERSION 1.0.0 LANGUAGES C)
+project (zet017tcp VERSION 1.0.1 LANGUAGES C)
 
 option(BUILD_SHARED "Build shared library" ON)
 option(BUILD_STATIC "Build static library" ON)
@@ -35,12 +35,12 @@ if(BUILD_STATIC)
 endif()
 
 if(BUILD_SHARED)
-	if(MSVC)
-		set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-	endif()
 	add_library(zet017tcp_shared SHARED ${ZET017TCP_SOURCES} ${ZET017TCP_INCLUDE})
 	target_include_directories(zet017tcp_shared PRIVATE src include)
 	target_link_libraries(zet017tcp_shared PRIVATE ${PLATFORM_LIBS})
+	if(MSVC)
+		target_sources(zet017tcp_shared PRIVATE win32/zet017tcp.def)
+	endif()
 	set_target_properties(zet017tcp_shared PROPERTIES
 		OUTPUT_NAME "zet017tcp"
 		VERSION ${PROJECT_VERSION}
