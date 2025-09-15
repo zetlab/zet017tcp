@@ -58,7 +58,7 @@ ZET017_TCP_API zet017_device_get_state(struct zet017_server* server, uint32_t nu
 
 ZET017_TCP_API zet017_device_get_config(struct zet017_server* server, uint32_t number, struct zet017_config* config);
 
-ZET017_TCP_API zet017_device_set_config(struct zet017_server* server, uint32_t number, struct zet017_config* config);
+ZET017_TCP_API zet017_device_set_config(struct zet017_server* server, uint32_t number, const struct zet017_config* config);
 
 ZET017_TCP_API zet017_device_start(struct zet017_server* server, uint32_t number);
 

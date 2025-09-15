@@ -1586,7 +1586,7 @@ ZET017_TCP_API zet017_device_get_config(struct zet017_server* server, uint32_t n
 	return 0;
 }
 
-ZET017_TCP_API zet017_device_set_config(struct zet017_server* server, uint32_t number, struct zet017_config* config)
+ZET017_TCP_API zet017_device_set_config(struct zet017_server* server, uint32_t number, const struct zet017_config* config)
 {
 	struct zet017_device* device = zet017_get_device(server, number);
 	if (device == NULL)
