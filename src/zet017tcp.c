@@ -282,7 +282,7 @@ static void cond_signal(cond_t* cond)
 #endif
 }
 
-static int network_init()
+static int network_init(void)
 {
 #if defined(ZET017_TCP_WINDOWS)
 	WSADATA wsaData;
@@ -292,14 +292,14 @@ static int network_init()
 	return 0;
 }
 
-static void network_cleanup()
+static void network_cleanup(void)
 {
 #if defined(ZET017_TCP_WINDOWS)
 	WSACleanup();
 #endif
 }
 
-static uint32_t zet017_get_timestamp()
+static uint32_t zet017_get_timestamp(void)
 {
 #if defined(ZET017_TCP_WINDOWS)
 	return GetTickCount();
@@ -429,7 +429,7 @@ static struct zet017_device* zet017_get_device(struct zet017_server* server, uin
 	if (server && server->device_count > number)
 	{
 		struct zet017_device* device = server->devices;
-		for (;;)
+		while (device != NULL)
 		{
 			if (number == 0)
 				return device;
@@ -659,9 +659,16 @@ static int zet017_socket_dac_connect(struct zet017_device* device)
 
 static void zet017_wakeup_socket_cleanup(struct zet017_device* device)
 {
-	close_socket(device->wakeup_socket[0]);
-	close_socket(device->wakeup_socket[1]);
-	device->wakeup_socket[0] = device->wakeup_socket[1] = INVALID_SOCKET;
+	if (device->wakeup_socket[0] != INVALID_SOCKET)
+	{
+		close_socket(device->wakeup_socket[0]);
+		device->wakeup_socket[0] = INVALID_SOCKET;
+	}
+	if (device->wakeup_socket[1] != INVALID_SOCKET)
+	{
+		close_socket(device->wakeup_socket[1]);
+		device->wakeup_socket[1] = INVALID_SOCKET;
+	}
 }
 
 static int zet017_wakeup_socket_init(struct zet017_device* device)
@@ -759,10 +766,21 @@ static int zet017_device_process_wakeup(struct zet017_device* device)
 static void zet017_device_close(struct zet017_device* device)
 {
 	zet017_wakeup_socket_cleanup(device);
-	close_socket(device->cmd_socket);
-	close_socket(device->adc_socket);
-	close_socket(device->dac_socket);
-	device->cmd_socket = device->adc_socket = device->dac_socket = INVALID_SOCKET;
+	if (device->cmd_socket != INVALID_SOCKET)
+	{
+		close_socket(device->cmd_socket);
+		device->cmd_socket = INVALID_SOCKET;
+	}
+	if (device->adc_socket != INVALID_SOCKET)
+	{
+		close_socket(device->adc_socket);
+		device->adc_socket = INVALID_SOCKET;
+	}
+	if (device->dac_socket != INVALID_SOCKET)
+	{
+		close_socket(device->dac_socket);
+		device->dac_socket = INVALID_SOCKET;
+	}
 
 	device->connected = 0;
 }
