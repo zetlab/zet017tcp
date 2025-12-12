@@ -29,10 +29,12 @@
   - ```serial```: Серийный номер
   - ```version```: Версия прошивки
 - ```zet017_state```: Структура состояния устройства
-  - ```connected```: Статус подключения
+  - ```is_connected```: Статус подключения
+  - ```reconnect```: Количество переподключений
   - ```pointer_adc```: Указатель буфера АЦП
   - ```buffer_size_adc```: Размер буфера АЦП
   - ```pointer_dac```: Указатель буфера ЦАП
+  - ```buffer_size_dac```: Общий размер буфера ЦАП
 
 #### Основной класс: zet017tcp
 
@@ -53,9 +55,10 @@ def __init__(self, library_path=None)
 - ```get_device_info(device_number)```: Получить информацию об устройстве
 - ```get_device_config(device_number)```: Получить конфигурацию устройства
 - ```set_device_config(device_number, config)```: Установить конфигурацию устройства
-- ```start_device(device_number)```: Запустить сбор данных
+- ```start_device(device_number, dac)```: Запустить сбор данных
 - ```stop_device(device_number)```: Остановить сбор данных
-- ```get_channel_data(device_number, channel, pointer, data, size)```: Получить данные с конкретного канала
+- ```get_channel_data(device_number, channel, pointer, data, size)```: Получить данные с конкретного канала АЦП
+- ```put_channel_data(device_number, channel, pointer, data, size)```: Отправить данные в конкретный канал ЦАП
 
 ## Файл: zet017_main.py
 
@@ -116,7 +119,7 @@ config['mask_channel_adc'] = 0x0e
 zet017.set_device_config(0, config)
 
 # Запуск сбора данных
-zet017.start_device(0)
+zet017.start_device(0, 0)
 
 # Очистка ресурсов
 zet017.cleanup()

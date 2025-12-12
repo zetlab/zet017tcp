@@ -80,12 +80,16 @@ zet017_device_get_info(struct zet017_server* server, uint32_t number, struct zet
 zet017_device_get_state(struct zet017_server* server, uint32_t number, struct zet017_state* state);
 zet017_device_get_config(struct zet017_server* server, uint32_t number, struct zet017_config* config);
 zet017_device_set_config(struct zet017_server* server, uint32_t number, struct zet017_config* config);
-zet017_device_start(struct zet017_server* server, uint32_t number);
+zet017_device_start(struct zet017_server* server, uint32_t number, uint32_t dac);
 zet017_device_stop(struct zet017_server* server, uint32_t number);
 
 // Сбор данных
-zet017_channel_get_data(struct zet017_server* server, uint32_t number, uint32_t channel, 
-                       uint32_t pointer, float* data, uint32_t size);
+zet017_channel_get_data(struct zet017_server* server, uint32_t number, uint32_t channel,
+                        uint32_t pointer, float* data, uint32_t size);
+
+// Генерация сигнала
+zet017_channel_put_data(struct zet017_server* server, uint32_t number, uint32_t channel,
+                        uint32_t pointer, float* data, uint32_t size);
 ```
 
 ### Структуры данных
@@ -107,10 +111,12 @@ struct zet017_info {
 };
 
 struct zet017_state {
-    uint16_t connected;          // Статус подключения
+    uint16_t is_connected;       // Статус подключения
+    uint64_t reconnect;          // Количество переподключений
     uint32_t pointer_adc;        // Текущая позиция в буфере АЦП
     uint32_t buffer_size_adc;    // Общий размер буфера АЦП
     uint32_t pointer_dac;        // Текущая позиция в буфере ЦАП
+    uint32_t buffer_size_dac;    // Общий размер буфера ЦАП
 };
 ```
 
@@ -150,7 +156,7 @@ int main() {
     }
     
     // Запуск сбора данных
-    if (zet017_device_start(server, 0) != 0) {
+    if (zet017_device_start(server, 0, 0) != 0) {
         fprintf(stderr, "Ошибка запуска сбора данных\n");
     }
     

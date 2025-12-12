@@ -39,6 +39,7 @@ if(BUILD_SHARED)
 	target_include_directories(zet017tcp_shared PRIVATE src include)
 	target_link_libraries(zet017tcp_shared PRIVATE ${PLATFORM_LIBS})
 	if(MSVC)
+		set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 		target_sources(zet017tcp_shared PRIVATE win32/zet017tcp.def)
 	endif()
 	set_target_properties(zet017tcp_shared PROPERTIES

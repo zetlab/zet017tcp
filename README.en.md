@@ -79,12 +79,16 @@ zet017_device_get_info(struct zet017_server* server, uint32_t number, struct zet
 zet017_device_get_state(struct zet017_server* server, uint32_t number, struct zet017_state* state);
 zet017_device_get_config(struct zet017_server* server, uint32_t number, struct zet017_config* config);
 zet017_device_set_config(struct zet017_server* server, uint32_t number, struct zet017_config* config);
-zet017_device_start(struct zet017_server* server, uint32_t number);
+zet017_device_start(struct zet017_server* server, uint32_t number, uint32_t dac);
 zet017_device_stop(struct zet017_server* server, uint32_t number);
 
 // Data acquisition
-zet017_channel_get_data(struct zet017_server* server, uint32_t number, uint32_t channel, 
-                       uint32_t pointer, float* data, uint32_t size);
+zet017_channel_get_data(struct zet017_server* server, uint32_t number, uint32_t channel,
+                        uint32_t pointer, float* data, uint32_t size);
+
+// Signal generation
+zet017_channel_put_data(struct zet017_server* server, uint32_t number, uint32_t channel,
+                        uint32_t pointer, float* data, uint32_t size);
 ```
 
 ### Data Structures
@@ -106,10 +110,12 @@ struct zet017_info {
 };
 
 struct zet017_state {
-    uint16_t connected;          // Connection status
+    uint16_t is_connected;       // Connection status
+    uint64_t reconnect;          // Reconnect count
     uint32_t pointer_adc;        // Current ADC buffer position
     uint32_t buffer_size_adc;    // Total ADC buffer size
     uint32_t pointer_dac;        // Current DAC buffer position
+    uint32_t buffer_size_dac;    // Total DAC buffer size
 };
 ```
 
@@ -149,7 +155,7 @@ int main() {
     }
     
     // Start acquisition
-    if (zet017_device_start(server, 0) != 0) {
+    if (zet017_device_start(server, 0, 0) != 0) {
         fprintf(stderr, "Failed to start acquisition\n");
     }
     

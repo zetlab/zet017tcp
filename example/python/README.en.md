@@ -29,10 +29,12 @@ This file provides a Python wrapper for the ZET 017 TCP library, allowing Python
   - ```serial```: Serial number
   - ```version```: Firmware version
 - ```zet017_state```: Device state structure
-  - ```connected```: Connection status
+  - ```is_connected```: Connection status
+  - ```reconnect```: Reconnect count
   - ```pointer_adc```: ADC buffer pointer
   - ```buffer_size_adc```: ADC buffer size
   - ```pointer_dac```: DAC buffer pointer
+  - ```buffer_size_dac```: DAC buffer size
 
   #### Main Class: zet017tcp
 
@@ -53,9 +55,10 @@ Automatically detects the appropriate library file (.dll on Windows, .so on Linu
 - ```get_device_info(device_number)```: Get device information
 - ```get_device_config(device_number)```: Get device configuration
 - ```set_device_config(device_number, config)```: Set device configuration
-- ```start_device(device_number)```: Start data acquisition
+- ```start_device(device_number, dac)```: Start data acquisition
 - ```stop_device(device_number)```: Stop data acquisition
-- ```get_channel_data(device_number, channel, pointer, data, size)```: Get data from a specific channel
+- ```get_channel_data(device_number, channel, pointer, data, size)```: Get data from a specific ADC channel
+- ```put_channel_data(device_number, channel, pointer, data, size)```: Put data to a specific DAC channel
 
 ## File: zet017_main.py
 
@@ -116,7 +119,7 @@ config['mask_channel_adc'] = 0x0e
 zet017.set_device_config(0, config)
 
 # Start acquisition
-zet017.start_device(0)
+zet017.start_device(0, 0)
 
 # Clean up
 zet017.cleanup()

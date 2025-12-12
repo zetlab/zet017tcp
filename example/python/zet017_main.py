@@ -1,11 +1,20 @@
 import signal
 import time
 import sys
-from ctypes import c_float
+import math
+from ctypes import (c_float, c_double, Structure)
 from zet017tcp import zet017tcp
 
 device_ip = "192.168.1.100"
 running = False
+
+class signal_data(Structure):
+    _fields_ = [
+        ("sine_ampl", c_double),
+        ("sine_freq", c_double),
+        ("sine_phase", c_double),
+        ("sine_dphase", c_double)
+    ]
 
 def signal_handler(sig, frame):
     global running
@@ -18,6 +27,13 @@ def calculate_mean(data, size):
 
     total = sum(data[:size])
     return total / size
+
+def generate_signal(data, size, sig_data):
+    for i in range(size):
+        data[i] = sig_data.sine_ampl * math.sin(sig_data.sine_phase)
+        sig_data.sine_phase += sig_data.sine_dphase
+        if sig_data.sine_phase >= 2. * math.pi:
+            sig_data.sine_phase -= 2. * math.pi
 
 def main():
     global running
@@ -58,18 +74,33 @@ def main():
     pointer_adc = 0
     adc_data = (c_float * portion_data_adc)()
 
+    sample_rate_dac = 50000
+    portion_data_dac = int(sample_rate_dac / 10)
+    advance_data_dac = int(sample_rate_dac / 2)
+    channel_dac = 0
+    pointer_dac = sample_rate_dac + portion_data_dac
+    dac_data = (c_float * advance_data_dac)()
+
+    sig_data = signal_data()
+    sig_data.sine_ampl = 1.
+    sig_data.sine_freq = 1011.213
+    sig_data.sine_phase = 0.
+    sig_data.sine_dphase = sig_data.sine_freq / sample_rate_dac * 2. * math.pi
+
     state = state_prev = {
         'connected': False,
+        'reconnect' : 0,
         'pointer_adc': 0,
         'buffer_size_adc': 0,
-        'pointer_dac': 0
+        'pointer_dac': 0,
+        'buffer_size_dac': 0
     }
 
     try:
         while running:
             state = zet017.get_device_state(number)
             if state:
-                if state['connected'] != state_prev.get('connected', False):
+                if state['connected'] != state_prev.get('connected', False) or state['reconnect'] != state_prev.get('reconnect', 0):
                     info = zet017.get_device_info(number)
                     if info:
                         if state['connected']:
@@ -77,6 +108,11 @@ def main():
                         else:
                             print("%s: disconnected device %s s/n %d" % (info['ip'], info['name'], info['serial']))
 
+                    configured = False
+                    counter = 0
+                    pointer_adc = 0
+                    pointer_dac = sample_rate_dac + portion_data_dac
+                    sig_data.sine_phase = 0
                 state_prev = state
 
             if state['connected']:
@@ -86,12 +122,14 @@ def main():
                         config['sample_rate_adc'] = sample_rate_adc
                         config['mask_channel_adc'] = mask_channel_adc
                         config['mask_icp'] = mask_icp
+                        config['sample_rate_dac'] = sample_rate_dac
                         for i in range(8):
                             config['gain'][i] = gain[i]
 
                         if zet017.set_device_config(number, config):
                             print("%s: %s s/n %d: device configured" % (info['ip'], info['name'], info['serial']))
-                            if zet017.start_device(number):
+                            if zet017.start_device(number, 1):
+                                print("%s: %s s/n %d: device started" % (info['ip'],info['name'], info['serial']))
                                 configured = True
 
                 size = 0
@@ -109,6 +147,22 @@ def main():
                         counter += 1
                         print("%s: %s s/n %d: channel %d: %d sec: mean value %.6f V" % (
                             info['ip'], info['name'], info['serial'], channel, counter, mean))
+
+                while True:
+                    if pointer_dac >= state['pointer_dac']:
+                        size = pointer_dac - state['pointer_dac']
+                    elif pointer_dac < state['pointer_dac']:
+                        size = pointer_dac + state['buffer_size_dac'] - state['pointer_dac']
+                    if size < portion_data_dac + advance_data_dac:
+                        pointer_dac += portion_data_dac
+                        if pointer_dac >= state['buffer_size_dac']:
+                            pointer_dac -= state['buffer_size_dac']
+
+                        generate_signal(dac_data, portion_data_dac, sig_data)
+                        zet017.put_channel_data(number, channel_dac, pointer_dac, dac_data, portion_data_dac)
+                    else:
+                        break
+
             time.sleep(0.1)
     except KeyboardInterrupt:
         pass

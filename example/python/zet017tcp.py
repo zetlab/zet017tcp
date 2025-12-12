@@ -2,7 +2,7 @@
 import os
 import sys
 from ctypes import (
-    c_char, c_char_p, c_uint16, c_int, c_uint32, c_float,
+    c_char, c_char_p, c_uint16, c_int, c_uint32, c_float, c_uint64,
     Structure, POINTER, byref, CDLL
 )
 
@@ -27,9 +27,11 @@ class zet017_info(Structure):
 class zet017_state(Structure):
     _fields_ = [
         ("connected", c_uint16),
+        ("reconnect", c_uint64),
         ("pointer_adc", c_uint32),
         ("buffer_size_adc", c_uint32),
-        ("pointer_dac", c_uint32)
+        ("pointer_dac", c_uint32),
+        ("buffer_size_dac", c_uint32)
     ]
 
 # Opaque pointer for server
@@ -113,7 +115,7 @@ class zet017tcp:
         self.lib.zet017_device_set_config.restype = c_int
 
         # zet017_device_start function
-        self.lib.zet017_device_start.argtypes = [POINTER(zet017_server), c_uint32]
+        self.lib.zet017_device_start.argtypes = [POINTER(zet017_server), c_uint32, c_uint32]
         self.lib.zet017_device_start.restype = c_int
 
         # zet017_device_stop function
@@ -125,6 +127,12 @@ class zet017tcp:
             POINTER(zet017_server), c_uint32, c_uint32, c_uint32, POINTER(c_float), c_uint32
         ]
         self.lib.zet017_channel_get_data.restype = c_int
+
+         # zet017_channel_put_data function
+        self.lib.zet017_channel_put_data.argtypes = [
+            POINTER(zet017_server), c_uint32, c_uint32, c_uint32, POINTER(c_float), c_uint32
+        ]
+        self.lib.zet017_channel_put_data.restype = c_int
 
     def init(self):
         """Initialize the ZET 017 server"""
@@ -164,9 +172,11 @@ class zet017tcp:
         if result == 0:
             return {
                 'connected': bool(state.connected),
+                'reconnect': state.reconnect,
                 'pointer_adc': state.pointer_adc,
                 'buffer_size_adc': state.buffer_size_adc,
-                'pointer_dac': state.pointer_dac
+                'pointer_dac': state.pointer_dac,
+                'buffer_size_dac': state.buffer_size_dac
             }
         return None
 
@@ -220,12 +230,12 @@ class zet017tcp:
         result = self.lib.zet017_device_set_config(self._server, device_number, byref(cfg))
         return result == 0
 
-    def start_device(self, device_number):
+    def start_device(self, device_number, dac):
         """Start data acquisition on a device"""
         if not self._server:
             raise RuntimeError("Server not initialized")
 
-        result = self.lib.zet017_device_start(self._server, device_number)
+        result = self.lib.zet017_device_start(self._server, device_number, dac)
         return result == 0
 
     def stop_device(self, device_number):
@@ -242,6 +252,16 @@ class zet017tcp:
             raise RuntimeError("Server not initialized")
 
         result = self.lib.zet017_channel_get_data(
+            self._server, device_number, channel, pointer, data, size
+        )
+        return result == 0
+
+    def put_channel_data(self, device_number, channel, pointer, data, size):
+        """Put data to a specific channel"""
+        if not self._server:
+            raise RuntimeError("Server not initialized")
+
+        result = self.lib.zet017_channel_put_data(
             self._server, device_number, channel, pointer, data, size
         )
         return result == 0

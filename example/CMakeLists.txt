@@ -1,7 +1,7 @@
 if(WIN32)
 	set(PLATFORM_LIBS ws2_32)
 else()
-	set(PLATFORM_LIBS pthread)
+	set(PLATFORM_LIBS pthread m)
 endif()
 
 if(BUILD_STATIC)
