@@ -45,6 +45,8 @@ typedef pthread_cond_t cond_t;
 #define ZET017_CMD_GET_INFO 0x0000
 #define ZET017_CMD_PUT_INFO 0x0012
 #define ZET017_CMD_READ_CORRECTION 0x0513
+#define ZET017_CMD_WRITE_TENSO 0x0570
+#define ZET017_CMD_READ_TENSO 0x0571
 
 #define ZET017_PACKET_SIZE 1024
 #define ZET017_MAX_FLUSH_SIZE 2048
@@ -53,8 +55,8 @@ typedef pthread_cond_t cond_t;
 #define ZET017_MAX_CHANNELS_ADC 8
 #define ZET017_MAX_GAINS_ADC 4
 #define ZET017_MAX_SAMPLE_SIZE_ADC sizeof(int32_t)
-#define ZET017_MAX_ADC_BUFFER_SIZE (ZET017_MAX_SAMPLE_RATE_ADC * ZET017_MAX_CHANNELS_ADC* ZET017_MAX_SAMPLE_SIZE_ADC)
-#define ZET017_ADC_GR_BUFFER_SIZE (1 * 2 * 3 * 2 * 5 * 1 * 7 * 2 * sizeof(int32_t))
+#define ZET017_MAX_ADC_BUFFER_SIZE (ZET017_MAX_SAMPLE_RATE_ADC * (ZET017_MAX_CHANNELS_ADC + 1) * ZET017_MAX_SAMPLE_SIZE_ADC) * 2
+#define ZET017_ADC_GR_BUFFER_SIZE (1 * 2 * 3 * 2 * 5 * 1 * 7 * 2 * 3 * sizeof(int32_t))
 #define ZET017_ADC_BUFFER_SIZE (ZET017_MAX_ADC_BUFFER_SIZE / ZET017_ADC_GR_BUFFER_SIZE + 1) * ZET017_ADC_GR_BUFFER_SIZE
 
 #define ZET017_MAX_SAMPLE_RATE_DAC 200000
@@ -65,6 +67,7 @@ typedef pthread_cond_t cond_t;
 
 enum zet017_command {
 	zet017_set_config = 0,
+	zet017_write_tenso_config,
 	zet017_start,
 	zet017_stop,
 };
@@ -115,13 +118,18 @@ struct zet017_device_info {
 	float resolution_dac_def;		//0x148: номинальный вес младшего разряда ЦАП
 	uint8_t reserve_12[4];
 	float resolution_adc[16];		//0x150: откалиброванный вес младшего разряда АЦП
-	uint8_t reserve_13[38];
+	uint8_t reserve_13[10];
+	uint16_t builtin_dac_state;		//0x19a: состояние работы встроенного генератора (0 бит - разрешение работы, 1 бит - разрешение на генерацию синуса)
+	int32_t builtin_dac_sine_freq;	//0x19c: частота синусоидального сигнала встроенного генератора в Гц
+	int32_t builtin_dac_sine_ampl;	//0x1a0: амплитуда синусоидального сигнала встроенного генератора в кодах
+	int32_t builtin_dac_sine_offset;//0x1a4: смещение синусоидального сигнала встроенного генератора в кодах
+	uint8_t reserve_14[14];
 	uint16_t atten_speed;			//0x1b6: скорость нарастания аттенюатора (0 - отключено, т.е. мгновенно)
-	uint8_t reserve_14[24];
+	uint8_t reserve_15[24];
 	float resolution_dac[4];		//0x1d0: откалиброванный вес младшего разряда ЦАП
-	uint8_t reserve_15[8];
+	uint8_t reserve_16[8];
 	uint16_t quantity_channel_virt;
-	uint8_t reserve_16[22];
+	uint8_t reserve_17[22];
 };
 
 struct zet017_correction_info {
@@ -129,6 +137,11 @@ struct zet017_correction_info {
 	float offset_adc[ZET017_MAX_CHANNELS_ADC][ZET017_MAX_GAINS_ADC];
 	float reduction[ZET017_MAX_CHANNELS_DAC];
 	float offset_dac[ZET017_MAX_CHANNELS_DAC];
+};
+
+struct zet017_tenso_info {
+	uint16_t scheme[ZET017_MAX_CHANNELS_ADC];
+	uint8_t correction[ZET017_MAX_CHANNELS_ADC][2];
 };
 
 struct zet017_command_info {
@@ -160,11 +173,12 @@ struct zet017_adc_data {
 	uint8_t buffer[ZET017_ADC_BUFFER_SIZE];
 	uint32_t pointer;
 	uint32_t channel_mask;
+	uint16_t work_channel;
 	uint16_t channel_quantity;
 	uint16_t sample_size;
-	uint16_t amplify_code[ZET017_MAX_CHANNELS_ADC];
+	uint16_t amplify_code[ZET017_MAX_CHANNELS_ADC + 1];
 
-	float resolution[ZET017_MAX_CHANNELS_ADC][ZET017_MAX_GAINS_ADC];
+	float resolution[ZET017_MAX_CHANNELS_ADC + 1][ZET017_MAX_GAINS_ADC];
 
 	mutex_t mutex;
 };
@@ -206,6 +220,7 @@ struct zet017_device {
 	uint64_t reconnect;
 	uint32_t timestamp;
 	struct zet017_device_info device_info;
+	struct zet017_tenso_info tenso_info;
 	struct zet017_adc_dac_data adc_dac_data;
 
 	struct zet017_state state;
@@ -215,6 +230,7 @@ struct zet017_device {
 	mutex_t info_mutex;
 
 	struct zet017_config config;
+	struct zet017_tenso_config tenso_config;
 	mutex_t config_mutex;
 
 	struct zet017_command_data command;
@@ -913,11 +929,15 @@ static void zet017_device_update_info(struct zet017_device* device, union zet017
 
 	mutex_lock(&device->config_mutex);
 	device->config.sample_rate_adc = zet017_get_sample_rate_adc(device->device_info.mode_adc);
+	device->config.moda_adc = device->device_info.mode_adc;
 	device->config.sample_rate_dac = zet017_get_sample_rate_dac(device->device_info.rate_dac);
+	device->config.rate_dac = device->device_info.rate_dac;
 	device->config.mask_channel_adc = device->device_info.mask_channel_adc;
 	device->config.mask_icp = device->device_info.mask_icp;
-	for (uint32_t i = 0; i < 8; ++i)
+	for (uint32_t i = 0; i < 8; ++i) {
 		device->config.gain[i] = zet017_get_gain(device->device_info.amplify_code[i]);
+		device->config.gain_code[i] = device->device_info.amplify_code[i];
+	}
 	if (device->device_info.quantity_channel_adc == 4) {
 		device->config.mask_channel_adc =
 			((device->device_info.mask_channel_adc & 0x02) >> 1) +
@@ -929,8 +949,22 @@ static void zet017_device_update_info(struct zet017_device* device, union zet017
 			((device->device_info.mask_icp & 0x08) >> 2) +
 			((device->device_info.mask_icp & 0x20) >> 3) +
 			((device->device_info.mask_icp & 0x80) >> 4);
-		for (uint32_t i = 0; i < 4; ++i)
+		for (uint32_t i = 0; i < 4; ++i) {
 			device->config.gain[i] = zet017_get_gain(device->device_info.amplify_code[i * 2 + 1]);
+			device->config.gain_code[i] = device->device_info.amplify_code[i * 2 + 1];
+		}
+	}
+	device->config.builtin_dac_state = device->device_info.builtin_dac_state;
+	device->config.builtin_dac_sine_freq = (double)device->device_info.builtin_dac_sine_freq;
+	device->config.builtin_dac_sine_ampl = (double)device->device_info.builtin_dac_sine_ampl;
+	device->config.builtin_dac_sine_offset = (double)device->device_info.builtin_dac_sine_offset;
+	if (device->device_info.resolution_dac[0]) {
+		device->config.builtin_dac_sine_ampl *= device->device_info.resolution_dac[0];
+		device->config.builtin_dac_sine_offset *= device->device_info.resolution_dac[0];
+	}
+	else {
+		device->config.builtin_dac_sine_ampl *= device->device_info.resolution_dac_def;
+		device->config.builtin_dac_sine_offset *= device->device_info.resolution_dac_def;
 	}
 	mutex_unlock(&device->config_mutex);
 
@@ -944,13 +978,25 @@ static void zet017_device_update_info(struct zet017_device* device, union zet017
 	mutex_unlock(&device->state_mutex);
 }
 
+static void zet017_device_update_tenso_info(struct zet017_device* device, union zet017_packet* packet) {
+	memcpy(&device->tenso_info, packet->cmd.data.u8, sizeof(struct zet017_tenso_info));
+	for (uint32_t i = 0; i < 8; ++i) {
+		device->tenso_config.scheme[i] = (enum zet017_scheme)device->tenso_info.scheme[i];
+		device->tenso_config.correction_1[i] = device->tenso_info.correction[i][0];
+		device->tenso_config.correction_2[i] = device->tenso_info.correction[i][1];
+	}
+}
+
 static void zet017_device_update_adc_dac_info(struct zet017_device* device) {
 	mutex_lock(&device->adc_data.mutex);
 
-	device->adc_data.channel_quantity = device->device_info.work_channel_adc;
+	device->adc_data.channel_quantity = device->device_info.quantity_channel_adc;
+	device->adc_data.work_channel = device->device_info.work_channel_adc;
 	device->adc_data.channel_mask = device->device_info.mask_channel_adc;
 	device->adc_data.sample_size = device->device_info.type_data_adc == 0 ? sizeof(int16_t) : sizeof(int32_t);
 	memcpy(device->adc_data.amplify_code, device->device_info.amplify_code, sizeof(device->device_info.amplify_code));
+	if (device->device_info.quantity_channel_virt)
+		device->adc_data.amplify_code[device->device_info.quantity_channel_adc - device->device_info.quantity_channel_virt] = 0;
 	if (device->device_info.quantity_channel_adc == 4) {
 		device->adc_data.channel_mask =
 			((device->device_info.mask_channel_adc & 0x02) >> 1) +
@@ -980,6 +1026,19 @@ static void zet017_device_update_adc_dac_info(struct zet017_device* device) {
 			device->adc_data.resolution[i][1] = device->adc_data.resolution[i][0] / device->correction.amplify[i][1];
 			device->adc_data.resolution[i][2] = device->adc_data.resolution[i][0] / device->correction.amplify[i][2];
 		}
+	}
+	if (device->device_info.quantity_channel_virt)
+	{
+		uint32_t* dummy = (uint32_t*)(device->correction.reduction);
+		if (*dummy == 0) {
+			float resolution = device->device_info.resolution_dac_def;
+			dummy = (uint32_t*)(device->device_info.resolution_dac);
+			if (*dummy != 0)
+				resolution = *(float*)dummy;
+			device->adc_data.resolution[quantity_channel_adc][0] = resolution;
+		}
+		else
+			device->adc_data.resolution[quantity_channel_adc][0] = *(float*)dummy;
 	}
 
 	mutex_unlock(&device->adc_data.mutex);
@@ -1098,6 +1157,38 @@ static int zet017_device_read_correction_cmd(struct zet017_device* device, union
 	return -1;
 }
 
+static int zet017_device_read_tenso_cmd(struct zet017_device* device, union zet017_packet* packet) {
+	for (;;) {
+		memset(&packet->cmd, 0x0, sizeof(struct zet017_command_info));
+		packet->cmd.command = ZET017_CMD_READ_TENSO;
+		packet->cmd.error = 1;
+		packet->cmd.size = sizeof(struct zet017_tenso_info);
+		if (0 != zet017_device_process_command(device, packet))
+			break;
+
+		if (packet->cmd.command == ZET017_CMD_READ_TENSO)
+			zet017_device_update_tenso_info(device, packet);
+		else
+			memset(&device->tenso_info, 0x0, sizeof(struct zet017_tenso_info));
+
+		return 0;
+	}
+
+	return -1;
+}
+
+static int zet017_device_write_tenso_cmd(struct zet017_device* device, union zet017_packet* packet) {
+	packet->cmd.command = ZET017_CMD_WRITE_TENSO;
+	packet->cmd.error = 1;
+	packet->cmd.size = sizeof(struct zet017_tenso_info);
+	if (0 != zet017_device_process_command(device, packet))
+		return -1;
+
+	zet017_device_update_tenso_info(device, packet);
+
+	return 0;
+}
+
 static int zet017_device_connect(struct zet017_device* device) {
 	for (;;) {
 		if (zet017_wakeup_socket_init(device) != 0)
@@ -1141,6 +1232,9 @@ static int zet017_device_init(struct zet017_device* device, union zet017_packet*
 			break;
 
 		if (zet017_device_read_correction_cmd(device, packet) != 0)
+			break;
+
+		if (zet017_device_read_tenso_cmd(device, packet) != 0)
 			break;
 
 		zet017_device_update_adc_dac_info(device);
@@ -1321,6 +1415,9 @@ static void zet017_process_command(struct zet017_device* device) {
 		case zet017_set_config:
 			device->command.result = zet017_device_put_info_cmd(device, &device->command.data);
 			zet017_device_update_adc_dac_info(device);
+			break;
+		case zet017_write_tenso_config:
+			device->command.result = zet017_device_write_tenso_cmd(device, &device->command.data);
 			break;
 		case zet017_start:
 			device->command.result = zet017_device_start_cmd(device, &device->command.data);
@@ -1600,6 +1697,21 @@ ZET017_TCP_API zet017_device_get_config(struct zet017_server* server, uint32_t n
 	return 0;
 }
 
+ZET017_TCP_API zet017_device_get_tenso_config(struct zet017_server* server, uint32_t number, struct zet017_tenso_config* config) {
+	if (!config)
+		return -1;
+
+	struct zet017_device* device = zet017_get_device(server, number);
+	if (device == NULL)
+		return -2;
+
+	mutex_lock(&device->config_mutex);
+	memcpy(config, &device->tenso_config, sizeof(struct zet017_tenso_config));
+	mutex_unlock(&device->config_mutex);
+
+	return 0;
+}
+
 ZET017_TCP_API zet017_device_set_config(
 	struct zet017_server* server, uint32_t number, const struct zet017_config* config) {
 	struct zet017_device* device = zet017_get_device(server, number);
@@ -1618,12 +1730,22 @@ ZET017_TCP_API zet017_device_set_config(
 	mutex_lock(&device->command.mutex);
 
 	memcpy(&device->command.data.info, &device->device_info, sizeof(struct zet017_device_info));
-	device->command.data.info.mode_adc = zet017_get_mode_adc(config->sample_rate_adc);
-	device->command.data.info.rate_dac = zet017_get_rate_dac(config->sample_rate_dac);
+	if (config->sample_rate_adc)
+		device->command.data.info.mode_adc = zet017_get_mode_adc(config->sample_rate_adc);
+	else
+		device->command.data.info.mode_adc = config->moda_adc;
+	if (config->sample_rate_dac)
+		device->command.data.info.rate_dac = zet017_get_rate_dac(config->sample_rate_dac);
+	else
+		device->command.data.info.rate_dac = config->rate_dac;
 	device->command.data.info.mask_channel_adc = config->mask_channel_adc;
 	device->command.data.info.mask_icp = config->mask_icp;
-	for (uint32_t i = 0; i < 8; ++i)
-		device->command.data.info.amplify_code[i] = zet017_get_amplify_code(config->gain[i]);
+	for (uint32_t i = 0; i < 8; ++i) {
+		if (config->gain[i])
+			device->command.data.info.amplify_code[i] = zet017_get_amplify_code(config->gain[i]);
+		else
+			device->command.data.info.amplify_code[i] = config->gain_code[i];
+	}
 	if (device->command.data.info.quantity_channel_adc == 4) {
 		device->command.data.info.mask_channel_adc = 
 			((config->mask_channel_adc & 0x1) << 1) +
@@ -1635,12 +1757,64 @@ ZET017_TCP_API zet017_device_set_config(
 			((config->mask_icp & 0x2) << 2) +
 			((config->mask_icp & 0x4) << 3) +
 			((config->mask_icp & 0x8) << 4);
-		for (uint32_t i = 0; i < 8; ++i)
-			device->command.data.info.amplify_code[i] = zet017_get_amplify_code(config->gain[i / 2]);
+		for (uint32_t i = 0; i < 8; ++i) {
+			if (config->gain[i / 2])
+				device->command.data.info.amplify_code[i] = zet017_get_amplify_code(config->gain[i / 2]);
+			else
+				device->command.data.info.amplify_code[i] = config->gain_code[i / 2];
+		}
 	}
+	device->command.data.info.builtin_dac_state = config->builtin_dac_state;
+	device->command.data.info.builtin_dac_sine_freq = (int32_t)config->builtin_dac_sine_freq;
+	double resolution_dac = device->command.data.info.resolution_dac[0];
+	if (!resolution_dac)
+		resolution_dac = device->command.data.info.resolution_dac_def;
+	device->command.data.info.builtin_dac_sine_ampl = (int32_t)(config->builtin_dac_sine_ampl / resolution_dac);
+	device->command.data.info.builtin_dac_sine_offset = (int32_t)(config->builtin_dac_sine_offset / resolution_dac);
 	zet017_set_size_packet_adc(&device->command.data.info);
 
 	device->command.command = zet017_set_config;
+	device->command.result = 0;
+	device->command.state = zet017_command_requested;
+	zet017_device_wakeup(device);
+
+	while (device->command.state != zet017_command_completed)
+		cond_wait(&device->command.cond, &device->command.mutex);
+
+	device->command.state = zet017_command_idle;
+	int r = device->command.result;
+
+	mutex_unlock(&device->command.mutex);
+
+	return r;
+}
+
+ZET017_TCP_API zet017_device_set_tenso_config(struct zet017_server* server, uint32_t number, const struct zet017_tenso_config* config)
+{
+	struct zet017_device* device = zet017_get_device(server, number);
+	if (device == NULL)
+		return -1;
+
+	mutex_lock(&device->state_mutex);
+	uint16_t is_connected = device->state.is_connected;
+	mutex_unlock(&device->state_mutex);
+	if (!is_connected)
+		return -2;
+
+	if (!config)
+		return -3;
+
+	mutex_lock(&device->command.mutex);
+
+	memcpy(device->command.data.cmd.data.u8, &device->tenso_info, sizeof(struct zet017_tenso_info));
+	struct zet017_tenso_info* tenso_info = (struct zet017_tenso_info*)(&device->command.data.cmd.data);
+	for (uint32_t i = 0; i < 8; ++i) {
+		tenso_info->scheme[i] = (uint16_t)config->scheme[i];
+		tenso_info->correction[i][0] = config->correction_1[i];
+		tenso_info->correction[i][1] = config->correction_2[i];
+	}
+
+	device->command.command = zet017_write_tenso_config;
 	device->command.result = 0;
 	device->command.state = zet017_command_requested;
 	zet017_device_wakeup(device);
@@ -1730,8 +1904,8 @@ ZET017_TCP_API zet017_channel_get_data(
 	if (device == NULL)
 		return -1;
 
-	if (channel >= ZET017_MAX_CHANNELS_ADC)
-		return -2;
+	//if (channel >= ZET017_MAX_CHANNELS_ADC)
+	//	return -2;
 
 	mutex_lock(&device->state_mutex);
 	uint16_t is_connected = device->state.is_connected;
@@ -1744,12 +1918,15 @@ ZET017_TCP_API zet017_channel_get_data(
 
 	mutex_lock(&device->adc_data.mutex);
 
+	if (channel >= device->adc_data.channel_quantity)
+		return -2;
+
 	if (!(device->adc_data.channel_mask & (1 << channel))) {
 		mutex_unlock(&device->adc_data.mutex);
 		return -5;
 	}
 
-	uint32_t step = device->adc_data.sample_size * device->adc_data.channel_quantity;
+	uint32_t step = device->adc_data.sample_size * device->adc_data.work_channel;
 	uint32_t channel_size = ZET017_ADC_BUFFER_SIZE / step;
 	if (pointer >= channel_size || size > channel_size) {
 		mutex_unlock(&device->adc_data.mutex);

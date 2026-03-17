@@ -19,12 +19,33 @@ extern "C" {
 
 struct zet017_server;
 
+enum zet017_scheme {
+	unknown = -1,
+
+	bridge = 0,
+	half_bridge,
+	quarter_bridge,
+};
+
 struct zet017_config {
 	uint32_t sample_rate_adc;
+	uint16_t moda_adc;
 	uint32_t sample_rate_dac;
+	uint16_t rate_dac;
 	uint32_t mask_channel_adc;
 	uint32_t mask_icp;
 	uint32_t gain[8];
+	uint16_t gain_code[8];
+	uint16_t builtin_dac_state;
+	double builtin_dac_sine_freq;
+	double builtin_dac_sine_ampl;
+	double builtin_dac_sine_offset;
+};
+
+struct zet017_tenso_config {
+	enum zet017_scheme scheme[8];
+	uint8_t correction_1[8];
+	uint8_t correction_2[8];
 };
 
 struct zet017_info {
@@ -57,7 +78,11 @@ ZET017_TCP_API zet017_device_get_state(struct zet017_server* server, uint32_t nu
 
 ZET017_TCP_API zet017_device_get_config(struct zet017_server* server, uint32_t number, struct zet017_config* config);
 
+ZET017_TCP_API zet017_device_get_tenso_config(struct zet017_server* server, uint32_t number, struct zet017_tenso_config* config);
+
 ZET017_TCP_API zet017_device_set_config(struct zet017_server* server, uint32_t number, const struct zet017_config* config);
+
+ZET017_TCP_API zet017_device_set_tenso_config(struct zet017_server* server, uint32_t number, const struct zet017_tenso_config* config);
 
 ZET017_TCP_API zet017_device_start(struct zet017_server* server, uint32_t number, uint32_t dac);
 
