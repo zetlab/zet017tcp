@@ -42,6 +42,8 @@ if(BUILD_SHARED)
 		set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 		target_sources(zet017tcp_shared PRIVATE win32/zet017tcp.def)
 	endif()
+	set(ZET017TCP_SHARED_LIB_PATH $<TARGET_FILE:zet017tcp_shared> CACHE INTERNAL "ZET017TCP_SHARED_LIB_PATH")
+	set(ZET017TCP_SHARED_LIB_NAME $<TARGET_FILE_NAME:zet017tcp_shared> CACHE INTERNAL "ZET017TCP_SHARED_LIB_NAME")
 	set_target_properties(zet017tcp_shared PROPERTIES
 		OUTPUT_NAME "zet017tcp"
 		VERSION ${PROJECT_VERSION}
@@ -56,4 +58,5 @@ endif()
 
 if(BUILD_EXAMPLES)
 	add_subdirectory(example)
+	add_subdirectory(example_2)
 endif()
