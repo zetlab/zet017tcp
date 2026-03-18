@@ -1,6 +1,6 @@
 # ZET 017 TCP/IP Communication Library
 
-A cross-platform C library for communicating with ZET 017, ZET 038 and ZET 028 devices over TCP/IP.
+A cross-platform C library for communicating with ZET 017, ZET 038, ZET 028, ZET 058 devices over TCP/IP.
 
 ## Features
 
@@ -14,7 +14,7 @@ A cross-platform C library for communicating with ZET 017, ZET 038 and ZET 028 d
 
 ## Supported Hardware
 
-ZET 017, ZET 038 and ZET 028 series data acquisition systems with:
+ZET 017, ZET 038, ZET 028, ZET 058 series data acquisition systems with:
 - Up to 8 ADC channels with programmable gains (1x, 10x, 100x)
 - Up to 2 DAC channels
 - Configurable sample rates:
@@ -33,6 +33,8 @@ zet017tcp/
 │ └── zet017tcp.c # Library implementation
 ├── example/
 │ └── example_zet017tcp.c # Usage example
+├── example_2/
+│ └── example2_zet017tcp.c # Usage example for ZET 058
 ├── CMakeLists.txt # Build configuration
 └── README.md
 ```
